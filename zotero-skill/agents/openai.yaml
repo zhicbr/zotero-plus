@@ -1,0 +1,3 @@
+display_name: Zotero 本地技能
+short_description: 用已经准备好的 zotero-skill 命令，按原子步骤完成本地 Zotero 论文检索、PDF 处理和摘要复用。
+default_prompt: 帮我用已经准备好的 zotero-skill 命令，在本地 Zotero 里按步骤找论文、复用摘要，并在必要时读取 PDF 文本缓存。
