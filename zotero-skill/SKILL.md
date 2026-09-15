@@ -47,6 +47,7 @@ description: 用已经可直接调用的 `zotero-skill` 命令，按原子步骤
 - `toc <attachment_key>`：按附件 key 读取一个 PDF 的目录。
 - `toc-from-paper <paper_key>`：按论文 key 自动选择首个本地 PDF，并读取目录。
 - `extract-pdfs <collection_key>`：提取并缓存分类内 PDF 正文文本。
+- `search <collection_key> --keywords ...`：在分类摘要与已缓存 PDF 正文中检索关键词并抽取上下文片段。
 - `summaries ...`：查看历史分析摘要。
 - `save-summary ...`：写入新的需求摘要。
 - `export-abstracts <collection_key...>`：将一个或多个分类下的论文标题和摘要导出为 Markdown 或 JSON。
@@ -56,12 +57,13 @@ description: 用已经可直接调用的 `zotero-skill` 命令，按原子步骤
 1. 先 `collections`，明确分类。
 2. 再 `items`，明确候选论文。
 3. 先读 `abstract`。
-4. 需要了解结构时读 `toc-from-paper` 或 `toc`。
-5. 需要看本地 PDF 时再用 `attachments`。
-6. 先查 `summaries`。
-7. 摘要不够时才 `extract-pdfs`。
-8. 有明确判断后再 `save-summary`。
-9. 需要将批量论文摘要落地为文件时，用 `export-abstracts`。
+4. 有具体关键词/方法名需求时，用 `search` 快速扫描摘要与已缓存 PDF 文本片段。
+5. 需要了解结构时读 `toc-from-paper` 或 `toc`。
+6. 需要看本地 PDF 时再用 `attachments`。
+7. 先查 `summaries`。
+8. 摘要与片段不够时才 `extract-pdfs`。
+9. 有明确判断后再 `save-summary`。
+10. 需要将批量论文摘要落地为文件时，用 `export-abstracts`。
 
 ## 输出要求
 

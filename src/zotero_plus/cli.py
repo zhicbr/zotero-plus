@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .analysis_store import AnalysisSummaryStore
 from .config import AppConfig, ConfigError
+from .paper_filter import FilterRules, PaperSearchEngine
 from .pdf_extractor import PdfExtractionError, PdfTextExtractor
 from .pipeline import build_export_data, format_abstracts_md
 from .zotero_client import ZoteroLibrary
@@ -88,6 +89,33 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser.add_argument("collection_keys", nargs="+")
     export_parser.add_argument("--format", choices=["md", "json", "both"], default="md")
     export_parser.add_argument("--output", type=Path)
+
+    search_parser = subparsers.add_parser(
+        "search",
+        help="Search keywords in abstracts and cached PDF texts within a collection or a specific paper.",
+    )
+    search_parser.add_argument("collection_key", help="Collection key to search in.")
+    search_parser.add_argument("--paper-key", help="Optional: limit search to a single paper key.")
+    search_parser.add_argument("--keywords", nargs="+", required=True, help="One or more keywords to search.")
+    search_parser.add_argument("--exclude", nargs="+", default=[], help="Exclude papers containing these keywords.")
+    search_parser.add_argument(
+        "--scope",
+        choices=["all", "pdf", "abstract"],
+        default="all",
+        help="Search scope: all, abstract, or pdf (default: all).",
+    )
+    search_parser.add_argument(
+        "--snippet-radius",
+        type=int,
+        default=100,
+        help="Context character radius for snippet extraction (default: 100).",
+    )
+    search_parser.add_argument(
+        "--all-papers",
+        action="store_true",
+        help="Include papers with 0 keyword matches in results (default: only matched papers).",
+    )
+    search_parser.add_argument("--json-output", type=Path)
 
     return parser
 
@@ -234,6 +262,23 @@ def main() -> int:
                 return 0
 
             payload = data
+        elif args.command == "search":
+            search_engine = PaperSearchEngine(config.pdf_cache_dir)
+            rules = FilterRules(
+                include_keywords=args.keywords,
+                exclude_keywords=args.exclude,
+                scope=args.scope,
+                snippet_radius=args.snippet_radius,
+                only_matched=not args.all_papers,
+            )
+            if args.paper_key:
+                paper = library.get_paper_by_key(args.paper_key)
+                search_record = search_engine.search_paper(paper, rules)
+                payload = asdict(search_record)
+            else:
+                papers = library.list_collection_items(args.collection_key)
+                records = search_engine.search_papers(papers, rules)
+                payload = [asdict(record) for record in records]
         else:
             parser.error(f"Unknown command: {args.command}")
             return 2

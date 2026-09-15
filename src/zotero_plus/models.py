@@ -101,3 +101,41 @@ class AnalysisSummaryRecord:
     storage_path: Path | None = None
     created_at: str = ""
     updated_at: str = ""
+
+
+@dataclass(slots=True)
+class FilterDecision:
+    matched: bool
+    reasons: list[str] = field(default_factory=list)
+    snippets: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class KeywordHitRecord:
+    keyword: str
+    count: int
+    snippets: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class PdfSearchHitRecord:
+    attachment_key: str
+    attachment_title: str
+    total_hits: int
+    hits: list[KeywordHitRecord] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class PaperSearchRecord:
+    paper_key: str
+    title: str
+    year: str | None
+    authors: list[str] = field(default_factory=list)
+    matched: bool = False
+    total_hits: int = 0
+    hit_keywords: list[str] = field(default_factory=list)
+    abstract_hits: list[KeywordHitRecord] = field(default_factory=list)
+    pdf_hits: list[PdfSearchHitRecord] = field(default_factory=list)
+    pdf_cache_status: str = "no_pdf"  # "cached" | "not_cached" | "no_pdf"
+    excluded: bool = False
+    exclude_reason: str | None = None

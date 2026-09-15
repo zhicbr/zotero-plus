@@ -18,6 +18,8 @@ zotero-skill summaries --collection-key <collection_key>
 zotero-skill summaries --collection-key <collection_key> --requirement "<需求>"
 zotero-skill summaries --attachment-key <attachment_key>
 zotero-skill save-summary --attachment-key <attachment_key> --requirement "<需求>" --verdict match|maybe|not_match|unknown --summary-file <文件>
+zotero-skill export-abstracts <collection_key...> [--format md|json|both] [--output <path>]
+zotero-skill search <collection_key> --keywords <kw1> [kw2...] [--paper-key <paper_key>] [--exclude <excl...>] [--scope all|pdf|abstract]
 ```
 
 ## 1. doctor
@@ -382,10 +384,50 @@ abstract text
 ---
 ```
 
+## 12. search
+
+```bash
+zotero-skill search <collection_key> --keywords <kw1> [kw2...]
+zotero-skill search <collection_key> --paper-key <paper_key> --keywords <kw1> [kw2...]
+zotero-skill search <collection_key> --keywords <kw1>... --scope abstract|pdf|all
+zotero-skill search <collection_key> --keywords <kw1>... --exclude <excl1>...
+zotero-skill search <collection_key> --keywords <kw1>... --snippet-radius 100 --all-papers
+```
+
+用途：
+
+- 在指定分类中，快速检索论文摘要与已缓存的 PDF 正文文本。
+- 提取关键词出现的频次、位置上下文片段（Snippet）以及排除词过滤。
+- 避免为了确认关键词而将整篇 PDF 全文读入大模型上下文。
+
+输入参数：
+
+- `collection_key`：分类 key（必填）。
+- `--paper-key`：可选，限定在单篇论文中检索。
+- `--keywords`：待检索的一个或多个关键词（不区分大小写，必填）。
+- `--exclude`：可选，排除包含这些关键词的论文。
+- `--scope`：检索范围，可选 `all`（默认）、`abstract`（仅摘要）、`pdf`（仅已缓存 PDF）。
+- `--snippet-radius`：上下文截取字符半径（默认 100 字符）。
+- `--all-papers`：是否在结果中包含 0 命中的论文（默认仅返回命中论文）。
+- `--json-output`：可选，将搜索结果 JSON 写入文件。
+
+关键输出字段：
+
+- `paper_key`：论文 key。
+- `title`：论文标题。
+- `matched`：是否匹配成功（命中关键词且未被排除）。
+- `total_hits`：命中的总关键词频次。
+- `hit_keywords`：命中的关键词列表。
+- `abstract_hits`：摘要中各关键词的命中数与前后文片段。
+- `pdf_hits`：各 PDF 附件中关键词的命中数与前后文片段。
+- `pdf_cache_status`：`cached`（已有正文缓存）、`not_cached`（未提取缓存）、`no_pdf`（无本地 PDF）。
+- `excluded`：是否因命中排除词被剔除。
+- `exclude_reason`：剔除原因。
+
 适用时机：
 
-- 需要将某几个分类下的论文摘要落地为文件。
-- 需要 AI 快速浏览一批论文的标题和摘要。
+- 用户提出具体技术点、算法名或研究对象过滤时（如 `剪枝`、`LoRA`、`TinyML`）。
+- 快速判断某篇论文是否真正讨论了目标技术，而不是仅在参考文献里提了一句。
 
 ## 最小工作流
 
