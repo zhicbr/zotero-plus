@@ -11,6 +11,7 @@ from .config import AppConfig, ConfigError
 from .paper_filter import FilterRules, PaperSearchEngine
 from .pdf_extractor import PdfExtractionError, PdfTextExtractor
 from .pipeline import build_export_data, format_abstracts_md
+from .readiness import assess_collection_readiness
 from .zotero_client import ZoteroLibrary
 
 
@@ -29,6 +30,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     items_parser = subparsers.add_parser("items", help="List paper items in a collection.")
     items_parser.add_argument("collection_key")
+    items_parser.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Recursively include items from all descendant collections.",
+    )
     items_parser.add_argument("--json-output", type=Path)
 
     abstract_parser = subparsers.add_parser("abstract", help="Get the stored abstract for one paper by paper key.")
@@ -45,11 +52,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     attachments_parser = subparsers.add_parser("attachments", help="List attachments for all paper items in a collection.")
     attachments_parser.add_argument("collection_key")
+    attachments_parser.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Recursively list attachments from all descendant collections.",
+    )
     attachments_parser.add_argument("--json-output", type=Path)
     attachments_parser.add_argument("--pdf-only", action="store_true")
 
     extract_parser = subparsers.add_parser("extract-pdfs", help="Extract and cache PDF text for a collection.")
     extract_parser.add_argument("collection_key")
+    extract_parser.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Recursively extract PDFs from all descendant collections.",
+    )
     extract_parser.add_argument("--force", action="store_true", help="Re-extract PDFs even if cached text already exists.")
     extract_parser.add_argument("--json-output", type=Path)
 
@@ -58,6 +77,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="List cached requirement-specific analysis summaries written by an AI.",
     )
     summaries_parser.add_argument("--collection-key")
+    summaries_parser.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Recursively match summaries across all descendant subcollections.",
+    )
     summaries_parser.add_argument("--attachment-key")
     summaries_parser.add_argument("--requirement")
     summaries_parser.add_argument("--search")
@@ -87,6 +112,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     export_parser = subparsers.add_parser("export-abstracts", help="Export paper titles and abstracts from one or more collections.")
     export_parser.add_argument("collection_keys", nargs="+")
+    export_parser.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Recursively export papers from all descendant collections.",
+    )
     export_parser.add_argument("--format", choices=["md", "json", "both"], default="md")
     export_parser.add_argument("--output", type=Path)
 
@@ -95,6 +126,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Search keywords in abstracts and cached PDF texts within a collection or a specific paper.",
     )
     search_parser.add_argument("collection_key", help="Collection key to search in.")
+    search_parser.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Recursively search in all descendant collections.",
+    )
     search_parser.add_argument("--paper-key", help="Optional: limit search to a single paper key.")
     search_parser.add_argument("--keywords", nargs="+", required=True, help="One or more keywords to search.")
     search_parser.add_argument("--exclude", nargs="+", default=[], help="Exclude papers containing these keywords.")
@@ -116,6 +153,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include papers with 0 keyword matches in results (default: only matched papers).",
     )
     search_parser.add_argument("--json-output", type=Path)
+
+    status_parser = subparsers.add_parser(
+        "cache-status",
+        help="Diagnose PDF extraction and summary readiness for a collection.",
+    )
+    status_parser.add_argument("collection_key", help="Collection key to diagnose.")
+    status_parser.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Recursively diagnose all descendant subcollections.",
+    )
+    status_parser.add_argument("--json-output", type=Path)
 
     return parser
 
@@ -152,7 +202,7 @@ def main() -> int:
         elif args.command == "collections":
             payload = [asdict(record) for record in library.list_collections()]
         elif args.command == "items":
-            payload = [asdict(record) for record in library.list_collection_items(args.collection_key)]
+            payload = [asdict(record) for record in library.list_collection_items(args.collection_key, recursive=args.recursive)]
         elif args.command == "abstract":
             paper = library.get_paper_by_key(args.paper_key)
             payload = {
@@ -185,14 +235,14 @@ def main() -> int:
                 "file_path": str(toc_record.file_path),
             }
         elif args.command == "attachments":
-            attachments = library.list_collection_attachments(args.collection_key)
+            attachments = library.list_collection_attachments(args.collection_key, recursive=args.recursive)
             if args.pdf_only:
                 attachments = [attachment for attachment in attachments if attachment.is_pdf]
             payload = [asdict(record) for record in attachments]
         elif args.command == "extract-pdfs":
             extractor = PdfTextExtractor(config.pdf_cache_dir)
             results = []
-            for attachment in library.list_collection_attachments(args.collection_key):
+            for attachment in library.list_collection_attachments(args.collection_key, recursive=args.recursive):
                 if not attachment.is_pdf:
                     continue
                 try:
@@ -213,15 +263,30 @@ def main() -> int:
                     )
             payload = results
         elif args.command == "summaries":
-            payload = [
-                asdict(record)
-                for record in summary_store.list_summaries(
-                    collection_key=args.collection_key,
+            if args.collection_key and args.recursive:
+                descendants = library.get_descendant_collections(args.collection_key)
+                descendant_keys = {c.key for c in descendants}
+                summaries = summary_store.list_summaries(
+                    collection_key=None,
                     attachment_key=args.attachment_key,
                     requirement=args.requirement,
                     search=args.search,
                 )
-            ]
+                payload = [
+                    asdict(record)
+                    for record in summaries
+                    if any(k in record.collection_keys for k in descendant_keys)
+                ]
+            else:
+                payload = [
+                    asdict(record)
+                    for record in summary_store.list_summaries(
+                        collection_key=args.collection_key,
+                        attachment_key=args.attachment_key,
+                        requirement=args.requirement,
+                        search=args.search,
+                    )
+                ]
         elif args.command == "save-summary":
             context = library.get_attachment_context(args.attachment_key)
             summary_text = args.summary
@@ -242,7 +307,7 @@ def main() -> int:
                 )
             )
         elif args.command == "export-abstracts":
-            data = build_export_data(library, args.collection_keys)
+            data = build_export_data(library, args.collection_keys, recursive=args.recursive)
 
             if args.output:
                 args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -276,9 +341,18 @@ def main() -> int:
                 search_record = search_engine.search_paper(paper, rules)
                 payload = asdict(search_record)
             else:
-                papers = library.list_collection_items(args.collection_key)
+                papers = library.list_collection_items(args.collection_key, recursive=args.recursive)
                 records = search_engine.search_papers(papers, rules)
                 payload = [asdict(record) for record in records]
+        elif args.command == "cache-status":
+            readiness_record = assess_collection_readiness(
+                library=library,
+                config=config,
+                summary_store=summary_store,
+                collection_key=args.collection_key,
+                recursive=args.recursive,
+            )
+            payload = asdict(readiness_record)
         else:
             parser.error(f"Unknown command: {args.command}")
             return 2

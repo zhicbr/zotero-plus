@@ -40,30 +40,32 @@ description: 用已经可直接调用的 `zotero-skill` 命令，按原子步骤
 
 ## 原子操作概览
 
+- `cache-status <collection_key> [-r]`：对分类进行数据就绪度体检，评估文献量、PDF 本地存在率、全文缓存就绪率、AI 摘要覆盖率并给出操作建议。
 - `collections`：列出全部分类，并返回可直接用于定位层级的结构化字段。
-- `items <collection_key>`：列出一个分类中的论文条目及其附件。
+- `items <collection_key> [-r]`：列出一个分类中的论文条目及其附件；`-r` 递归包含所有子分类文献。
 - `abstract <paper_key>`：读取 Zotero 中存储的论文摘要。
-- `attachments <collection_key>`：列出分类中的附件；`--pdf-only` 可仅保留 PDF。
+- `attachments <collection_key> [-r]`：列出分类中的附件；`--pdf-only` 仅保留 PDF；`-r` 递归穿透子分类。
 - `toc <attachment_key>`：按附件 key 读取一个 PDF 的目录。
 - `toc-from-paper <paper_key>`：按论文 key 自动选择首个本地 PDF，并读取目录。
-- `extract-pdfs <collection_key>`：提取并缓存分类内 PDF 正文文本。
-- `search <collection_key> --keywords ...`：在分类摘要与已缓存 PDF 正文中检索关键词并抽取上下文片段。
-- `summaries ...`：查看历史分析摘要。
+- `extract-pdfs <collection_key> [-r]`：提取并缓存分类内 PDF 正文文本；`-r` 递归提取子分类。
+- `search <collection_key> --keywords ... [-r]`：在分类摘要与已缓存 PDF 正文中检索关键词并抽取上下文片段；`-r` 支持全层级穿透搜索。
+- `summaries ... [-r]`：查看历史分析摘要；支持指定 `--collection-key` 与 `-r` 穿透子分类。
 - `save-summary ...`：写入新的需求摘要。
-- `export-abstracts <collection_key...>`：将一个或多个分类下的论文标题和摘要导出为 Markdown 或 JSON。
+- `export-abstracts <collection_key...> [-r]`：将一个或多个分类下的论文标题和摘要导出为 Markdown 或 JSON；`-r` 支持递归导出子分类。
 
 ## 推荐顺序
 
 1. 先 `collections`，明确分类。
-2. 再 `items`，明确候选论文。
-3. 先读 `abstract`。
-4. 有具体关键词/方法名需求时，用 `search` 快速扫描摘要与已缓存 PDF 文本片段。
-5. 需要了解结构时读 `toc-from-paper` 或 `toc`。
-6. 需要看本地 PDF 时再用 `attachments`。
-7. 先查 `summaries`。
-8. 摘要与片段不够时才 `extract-pdfs`。
-9. 有明确判断后再 `save-summary`。
-10. 需要将批量论文摘要落地为文件时，用 `export-abstracts`。
+2. 对复杂或多层级分类，先用 `cache-status <collection_key> [-r]` 做数据就绪度体检，查看缓存缺口与建议。
+3. 再 `items`（若需包含所有子分类则加 `-r`），明确候选论文。
+4. 先读 `abstract`。
+5. 有具体关键词/方法名需求时，用 `search [-r]` 快速扫描摘要与已缓存 PDF 文本片段。
+6. 需要了解结构时读 `toc-from-paper` 或 `toc`。
+7. 需要看本地 PDF 时再用 `attachments`。
+8. 先查 `summaries`。
+9. 摘要与片段不够时根据体检建议再 `extract-pdfs [-r]`。
+10. 有明确判断后再 `save-summary`。
+11. 需要将批量论文摘要落地为文件时，用 `export-abstracts [-r]`。
 
 ## 输出要求
 

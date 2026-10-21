@@ -6,20 +6,18 @@
 
 ```bash
 zotero-skill doctor
+zotero-skill cache-status <collection_key> [-r]
 zotero-skill collections
-zotero-skill items <collection_key>
+zotero-skill items <collection_key> [-r]
 zotero-skill abstract <paper_key>
-zotero-skill attachments <collection_key>
-zotero-skill attachments <collection_key> --pdf-only
+zotero-skill attachments <collection_key> [--pdf-only] [-r]
 zotero-skill toc <attachment_key>
 zotero-skill toc-from-paper <paper_key>
-zotero-skill extract-pdfs <collection_key>
-zotero-skill summaries --collection-key <collection_key>
-zotero-skill summaries --collection-key <collection_key> --requirement "<需求>"
-zotero-skill summaries --attachment-key <attachment_key>
+zotero-skill extract-pdfs <collection_key> [-r] [--force]
+zotero-skill summaries [--collection-key <collection_key> [-r]] [--requirement "<需求>"] [--attachment-key <attachment_key>]
 zotero-skill save-summary --attachment-key <attachment_key> --requirement "<需求>" --verdict match|maybe|not_match|unknown --summary-file <文件>
-zotero-skill export-abstracts <collection_key...> [--format md|json|both] [--output <path>]
-zotero-skill search <collection_key> --keywords <kw1> [kw2...] [--paper-key <paper_key>] [--exclude <excl...>] [--scope all|pdf|abstract]
+zotero-skill export-abstracts <collection_key...> [-r] [--format md|json|both] [--output <path>]
+zotero-skill search <collection_key> --keywords <kw1> [kw2...] [-r] [--paper-key <paper_key>] [--exclude <excl...>] [--scope all|pdf|abstract]
 ```
 
 ## 1. doctor
@@ -68,16 +66,19 @@ zotero-skill collections
 
 ```bash
 zotero-skill items <collection_key>
+zotero-skill items <collection_key> -r
 ```
 
 用途：
 
 - 查看一个分类中的论文条目。
 - 同时返回每篇论文的附件信息。
+- 添加 `-r` / `--recursive` 可穿透检索该分类及其所有子分类中的论文条目（自动去重）。
 
 输入：
 
 - `collection_key`：来自 `collections` 的分类 key。
+- `-r` / `--recursive`：可选，递归包含所有子分类文献。
 
 关键输出字段：
 
@@ -136,16 +137,19 @@ zotero-skill abstract <paper_key>
 ```bash
 zotero-skill attachments <collection_key>
 zotero-skill attachments <collection_key> --pdf-only
+zotero-skill attachments <collection_key> -r
 ```
 
 用途：
 
 - 列出一个分类中的全部附件。
 - 用 `--pdf-only` 仅保留 PDF。
+- 添加 `-r` / `--recursive` 可聚合该分类及其所有子分类下的附件清单（自动按附件 key 去重）。
 
 输入：
 
 - `collection_key`
+- `-r` / `--recursive`：可选，穿透子分类。
 
 关键输出字段：
 
@@ -236,15 +240,20 @@ zotero-skill toc-from-paper <paper_key>
 
 ```bash
 zotero-skill extract-pdfs <collection_key>
+zotero-skill extract-pdfs <collection_key> -r
+zotero-skill extract-pdfs <collection_key> --force
 ```
 
 用途：
 
 - 提取并缓存一个分类中所有本地 PDF 的正文文本。
+- 添加 `-r` / `--recursive` 可递归提取其所有子分类下的本地 PDF。
 
 输入：
 
 - `collection_key`
+- `-r` / `--recursive`：可选，递归提取子分类。
+- `--force`：可选，已存在缓存时强制重新提取。
 
 关键输出字段：
 
@@ -265,12 +274,13 @@ zotero-skill extract-pdfs <collection_key>
 约束：
 
 - 不要默认对所有分类大规模执行。
-- 先缩小候选范围，再提取。
+- 先用 `cache-status` 评估缺口，或先缩小候选范围后再提取。
 
 ## 9. summaries
 
 ```bash
 zotero-skill summaries --collection-key <collection_key>
+zotero-skill summaries --collection-key <collection_key> -r
 zotero-skill summaries --collection-key <collection_key> --requirement "<需求>"
 zotero-skill summaries --attachment-key <attachment_key>
 ```
@@ -279,10 +289,11 @@ zotero-skill summaries --attachment-key <attachment_key>
 
 - 查看历史分析摘要。
 - 复用过去已经写过的结论。
+- 添加 `-r` / `--recursive` 可在指定分类及其所有子分类中匹配历史摘要。
 
 常见输入方式：
 
-- 按分类查看。
+- 按分类查看（支持 `-r` 递归）。
 - 按分类 + 需求查看。
 - 按附件查看。
 
@@ -337,17 +348,19 @@ zotero-skill save-summary --attachment-key <attachment_key> --requirement "<需�
 ## 11. export-abstracts
 
 ```bash
-zotero-skill export-abstracts <collection_key> [<collection_key2> ...] [--format md|json|both] [--output <path>]
+zotero-skill export-abstracts <collection_key> [<collection_key2> ...] [-r] [--format md|json|both] [--output <path>]
 ```
 
 用途：
 
 - 将一个或多个分类下的论文标题和摘要导出为 Markdown 或 JSON。
 - 每篇论文只含标题、年份（可选）、摘要三字段。
+- 添加 `-r` / `--recursive` 可递归导出各个分类及其所有子分类下的论文条目。
 
 输入：
 
 - `collection_keys`：来自 `collections` 的分类 key，可传多个。
+- `-r` / `--recursive`：可选，递归包含所有子分类。
 
 输出格式：
 
@@ -388,6 +401,7 @@ abstract text
 
 ```bash
 zotero-skill search <collection_key> --keywords <kw1> [kw2...]
+zotero-skill search <collection_key> --keywords <kw1> [kw2...] -r
 zotero-skill search <collection_key> --paper-key <paper_key> --keywords <kw1> [kw2...]
 zotero-skill search <collection_key> --keywords <kw1>... --scope abstract|pdf|all
 zotero-skill search <collection_key> --keywords <kw1>... --exclude <excl1>...
@@ -398,11 +412,13 @@ zotero-skill search <collection_key> --keywords <kw1>... --snippet-radius 100 --
 
 - 在指定分类中，快速检索论文摘要与已缓存的 PDF 正文文本。
 - 提取关键词出现的频次、位置上下文片段（Snippet）以及排除词过滤。
+- 添加 `-r` / `--recursive` 可穿透检索该分类及其所有子分类下的论文与全文缓存。
 - 避免为了确认关键词而将整篇 PDF 全文读入大模型上下文。
 
 输入参数：
 
 - `collection_key`：分类 key（必填）。
+- `-r` / `--recursive`：可选，递归搜索所有子分类。
 - `--paper-key`：可选，限定在单篇论文中检索。
 - `--keywords`：待检索的一个或多个关键词（不区分大小写，必填）。
 - `--exclude`：可选，排除包含这些关键词的论文。
@@ -428,6 +444,45 @@ zotero-skill search <collection_key> --keywords <kw1>... --snippet-radius 100 --
 
 - 用户提出具体技术点、算法名或研究对象过滤时（如 `剪枝`、`LoRA`、`TinyML`）。
 - 快速判断某篇论文是否真正讨论了目标技术，而不是仅在参考文献里提了一句。
+
+## 13. cache-status
+
+```bash
+zotero-skill cache-status <collection_key>
+zotero-skill cache-status <collection_key> -r
+```
+
+用途：
+
+- 快速评估某个分类（或整棵子树）的数据就绪度。
+- 一目了然查看：文献总数、本地 PDF 存在情况、正文缓存就绪率、已有 AI 摘要数及未缓存附件列表。
+- 给出精准的下一步操作建议（如缺失本地文件提醒、一键提取命令建议等）。
+
+输入参数：
+
+- `collection_key`：分类 key（必填）。
+- `-r` / `--recursive`：可选，穿透体检该分类及其所有子分类。
+- `--json-output`：可选，保存诊断结果为 JSON。
+
+关键输出字段：
+
+- `collection_name` / `collection_path`：分类名与完整层级路径。
+- `is_recursive`：是否为递归层级体检。
+- `subcollection_count`：子分类总数。
+- `total_papers`：论文条目总数。
+- `papers_with_pdf` / `papers_without_pdf`：含/不含 PDF 的论文数。
+- `papers_with_abstract`：有摘要记录的论文数。
+- `total_pdf_attachments` / `local_pdf_attachments` / `missing_pdf_attachments`：PDF 附件总数及本地文件存在/缺失数。
+- `cached_pdf_texts` / `uncached_pdf_texts`：已提取正文缓存数与未提取数。
+- `cache_percentage`：本地 PDF 提取完成百分比（0.0% - 100.0%）。
+- `status`：状态码，`ready`（全部就绪）、`partially_cached`（部分缓存）、`no_cache`（未缓存）、`empty`（无条目）。
+- `suggestions`：根据现状自动生成的下一步指引与命令建议列表。
+- `uncached_attachments`：未缓存的附件列表清单（含 `attachment_key`、`attachment_title`、`has_local_file`）。
+
+适用时机：
+
+- 在开始大规模文献分析或综述前，快速摸底数据状态。
+- 判断是否需要先执行 `extract-pdfs`，避免盲目全文提取。
 
 ## 最小工作流
 

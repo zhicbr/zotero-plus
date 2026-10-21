@@ -94,19 +94,49 @@ class ZoteroLibrary:
             )
         return sorted(collections, key=lambda record: (record.path.casefold(), record.key))
 
-    def list_collection_items(self, collection_key: str) -> list[PaperRecord]:
-        with self._connect() as conn:
-            collection_row = conn.execute(
-                "SELECT collectionID FROM collections WHERE key = ?",
-                (collection_key,),
-            ).fetchone()
-            if not collection_row:
-                raise ValueError(f"Collection not found: {collection_key}")
-            collection_id = collection_row[0]
+    def get_collection_by_key(self, collection_key: str) -> CollectionRecord:
+        for col in self.list_collections():
+            if col.key == collection_key:
+                return col
+        raise ValueError(f"Collection not found: {collection_key}")
 
+    def get_descendant_collections(self, collection_key: str) -> list[CollectionRecord]:
+        """Return the collection itself and all its descendant subcollections."""
+        all_collections = self.list_collections()
+        target = None
+        for col in all_collections:
+            if col.key == collection_key:
+                target = col
+                break
+        if not target:
+            raise ValueError(f"Collection not found: {collection_key}")
+
+        descendants: list[CollectionRecord] = []
+        for col in all_collections:
+            if collection_key in col.path_keys:
+                descendants.append(col)
+        return descendants
+
+    def list_collection_items(self, collection_key: str, recursive: bool = False) -> list[PaperRecord]:
+        if recursive:
+            collections = self.get_descendant_collections(collection_key)
+            collection_ids = [c.id for c in collections]
+        else:
+            with self._connect() as conn:
+                collection_row = conn.execute(
+                    "SELECT collectionID FROM collections WHERE key = ?",
+                    (collection_key,),
+                ).fetchone()
+                if not collection_row:
+                    raise ValueError(f"Collection not found: {collection_key}")
+                collection_ids = [collection_row[0]]
+
+        placeholders = ",".join("?" for _ in collection_ids)
+        with self._connect() as conn:
             rows = conn.execute(
-                """
-                SELECT i.itemID,
+                f"""
+                SELECT DISTINCT
+                       i.itemID,
                        i.key,
                        it.typeName,
                        title.value AS title,
@@ -124,10 +154,10 @@ class ZoteroLibrary:
                 LEFT JOIN itemDataValues abstract_value ON abstract_value.valueID = abstract_data.valueID
                 LEFT JOIN itemData doi_data ON doi_data.itemID = i.itemID AND doi_data.fieldID = 59
                 LEFT JOIN itemDataValues doi_value ON doi_value.valueID = doi_data.valueID
-                WHERE ci.collectionID = ?
+                WHERE ci.collectionID IN ({placeholders})
                 ORDER BY COALESCE(title.value, '') COLLATE NOCASE, i.key
                 """,
-                (collection_id,),
+                tuple(collection_ids),
             ).fetchall()
 
             candidate_rows = [row for row in rows if row[2] in SUPPORTED_PAPER_TYPES]
@@ -155,11 +185,15 @@ class ZoteroLibrary:
             )
         return papers
 
-    def list_collection_attachments(self, collection_key: str) -> list[AttachmentRecord]:
-        papers = self.list_collection_items(collection_key)
+    def list_collection_attachments(self, collection_key: str, recursive: bool = False) -> list[AttachmentRecord]:
+        papers = self.list_collection_items(collection_key, recursive=recursive)
         attachments: list[AttachmentRecord] = []
+        seen_attachment_keys: set[str] = set()
         for paper in papers:
-            attachments.extend(paper.attachments)
+            for att in paper.attachments:
+                if att.key not in seen_attachment_keys:
+                    seen_attachment_keys.add(att.key)
+                    attachments.append(att)
         return attachments
 
     def get_paper_by_key(self, paper_key: str) -> PaperRecord:

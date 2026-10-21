@@ -9,8 +9,16 @@ from .pdf_extractor import PdfExtractionError, PdfTextExtractor
 from .zotero_client import ZoteroLibrary
 
 
-def collect_pdf_attachments(library: ZoteroLibrary, collection_key: str) -> list[AttachmentRecord]:
-    return [attachment for attachment in library.list_collection_attachments(collection_key) if attachment.is_pdf]
+def collect_pdf_attachments(
+    library: ZoteroLibrary,
+    collection_key: str,
+    recursive: bool = False,
+) -> list[AttachmentRecord]:
+    return [
+        attachment
+        for attachment in library.list_collection_attachments(collection_key, recursive=recursive)
+        if attachment.is_pdf
+    ]
 
 
 def extract_collection_pdfs(
@@ -18,9 +26,10 @@ def extract_collection_pdfs(
     extractor: PdfTextExtractor,
     collection_key: str,
     force: bool = False,
+    recursive: bool = False,
 ) -> list[PdfTextRecord]:
     results: list[PdfTextRecord] = []
-    for attachment in collect_pdf_attachments(library, collection_key):
+    for attachment in collect_pdf_attachments(library, collection_key, recursive=recursive):
         try:
             results.append(extractor.extract_attachment(attachment, force=force))
         except PdfExtractionError as exc:
@@ -49,7 +58,11 @@ def to_dicts(records: list[object]) -> list[dict]:
     return [asdict(record) for record in records]
 
 
-def build_export_data(library: ZoteroLibrary, collection_keys: list[str]) -> list[dict]:
+def build_export_data(
+    library: ZoteroLibrary,
+    collection_keys: list[str],
+    recursive: bool = False,
+) -> list[dict]:
     collections = {c.key: c for c in library.list_collections()}
     data: list[dict] = []
     for key in collection_keys:
@@ -57,7 +70,7 @@ def build_export_data(library: ZoteroLibrary, collection_keys: list[str]) -> lis
         if not collection:
             raise ValueError(f"Collection not found: {key}")
         papers = []
-        for paper in library.list_collection_items(key):
+        for paper in library.list_collection_items(key, recursive=recursive):
             entry: dict[str, object] = {"title": paper.title, "abstract": paper.abstract}
             if paper.year:
                 entry["year"] = paper.year

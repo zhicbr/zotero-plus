@@ -139,3 +139,27 @@ class PaperSearchRecord:
     pdf_cache_status: str = "no_pdf"  # "cached" | "not_cached" | "no_pdf"
     excluded: bool = False
     exclude_reason: str | None = None
+
+
+@dataclass(slots=True)
+class CollectionReadinessRecord:
+    collection_key: str
+    collection_name: str
+    collection_path: str
+    is_recursive: bool
+    subcollection_count: int
+    total_papers: int
+    papers_with_pdf: int
+    papers_without_pdf: int
+    papers_with_abstract: int
+    total_pdf_attachments: int
+    local_pdf_attachments: int
+    missing_pdf_attachments: int
+    cached_pdf_texts: int
+    uncached_pdf_texts: int
+    total_analysis_summaries: int
+    analyzed_papers_count: int
+    cache_percentage: float
+    status: str  # "ready" | "partially_cached" | "no_cache" | "empty"
+    suggestions: list[str] = field(default_factory=list)
+    uncached_attachments: list[dict[str, str]] = field(default_factory=list)
