@@ -40,6 +40,8 @@ description: 用已经可直接调用的 `zotero-skill` 命令，按原子步骤
 
 ## 原子操作概览
 
+- `doctor`：环境状态与数据库可达性检查。
+- `backup [--max-keep <count>]`：为本地数据库创建热快照备份（任何写操作前底层也会自动快照）。
 - `cache-status <collection_key> [-r]`：对分类进行数据就绪度体检，评估文献量、PDF 本地存在率、全文缓存就绪率、AI 摘要覆盖率并给出操作建议。
 - `collections`：列出全部分类，并返回可直接用于定位层级的结构化字段。
 - `items <collection_key> [-r]`：列出一个分类中的论文条目及其附件；`-r` 递归包含所有子分类文献。
@@ -52,6 +54,22 @@ description: 用已经可直接调用的 `zotero-skill` 命令，按原子步骤
 - `summaries ... [-r]`：查看历史分析摘要；支持指定 `--collection-key` 与 `-r` 穿透子分类。
 - `save-summary ...`：写入新的需求摘要。
 - `export-abstracts <collection_key...> [-r]`：将一个或多个分类下的论文标题和摘要导出为 Markdown 或 JSON；`-r` 支持递归导出子分类。
+- `auth`：向运行中的 Zotero 桌面端申请本地写入授权。
+- `create-collection <name> [--parent <key>] [--dry-run]`：创建新分类。
+- `rename-collection <collection_key> <new_name> [--dry-run]`：重命名分类。
+- `delete-empty-collection <collection_key> [--dry-run]`：安全删除空分类（非空强行拒绝）。
+- `add-to-collection <paper_key> <collection_key> [--dry-run]`：将论文归入某分类。
+- `remove-from-collection <paper_key> <collection_key> [--dry-run]`：将论文从某分类中移出。
+- `move-paper <paper_key> --to <target_key> [--from <src_key>] [--dry-run]`：迁移论文分类。
+- `add-tag <paper_key> <tag> [--dry-run]`：为论文添加标签。
+- `remove-tag <paper_key> <tag> [--dry-run]`：为论文移除标签。
+
+## 安全与修改准则
+
+- **严禁删除文献**：工具不提供任何物理删除论文条目的命令，只允许调整分类和增删标签。
+- **删除分类严格受限**：`delete-empty-collection` 会在底层强校验条目数和子分类数，非空分类绝对禁止删除。
+- **预演先行**：在批量重构、移动或整理前，优先建议使用 `--dry-run` 预览变更。
+- **按需授权**：执行修改命令前需确保执行过 `zotero-skill auth` 并获得授权。
 
 ## 推荐顺序
 

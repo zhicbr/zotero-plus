@@ -90,6 +90,20 @@
 - [x] 根据分类与缓存现状自动生成下一步智能建议（如缺失本地文件排查、一键提取命令建议等）。
 - [x] 供用户或 AI 在执行大规模分析任务前一键评估数据完整度与缓存缺口。
 
+### 统一 CLI 命令入口
+
+- [x] 在 `pyproject.toml` 的 `[project.scripts]` 中同时声明 `zotero-plus` 和 `zotero-skill` 两个入口。
+- [x] 让两者在命令行完全等价，减少双命名带来的认知负担。
+
+### 文献整理与分类变更原子操作 (Mutation)
+
+- [x] 新增 `auth` 授权命令，无缝接入 Zotero 10 原生本地安全授权弹窗，并持久化本地 API Key。
+- [x] 抽象统一的变更执行引擎 `ZoteroMutator`，支持 `local`（极速本地 23119 原生端口）、`remote`（官方 Web API）及 `auto` 自动回退。
+- [x] 新增分类管理原子命令：`create-collection`、`rename-collection`、`delete-empty-collection`。
+- [x] 新增条目归类与移动原子命令：`add-to-collection`、`remove-from-collection`、`move-paper`。
+- [x] 新增标签管理原子命令：`add-tag`、`remove-tag`。
+- [x] 强安全防御设计：底层严禁删除文献（从不提供 delete-item 接口）；删除分类前强制校验必须为空目录；所有修改命令均支持 `--dry-run` 预演。
+
 ## TODO
 
 ### 本地高光划线与阅读笔记
@@ -104,8 +118,3 @@
 - [ ] 支持读取 Zotero 本地数据库的标签体系。
 - [ ] 新增 `tags` 命令：列出所有 Tag 及其关联的条目数。
 - [ ] 支持在 `items` 中按 Tag 过滤：`items <collection_key> --tag <tag_name>` 或跨分类查找 `items --tag <tag_name>`。
-
-### 统一 CLI 命令入口
-
-- [ ] 在 `pyproject.toml` 的 `[project.scripts]` 中同时声明 `zotero-plus` 和 `zotero-skill` 两个入口。
-- [ ] 让两者在命令行完全等价，减少双命名带来的认知负担。

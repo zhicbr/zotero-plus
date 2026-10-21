@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .analysis_store import AnalysisSummaryStore
 from .config import AppConfig, ConfigError
+from .mutator import MutationError, ZoteroMutator
 from .paper_filter import FilterRules, PaperSearchEngine
 from .pdf_extractor import PdfExtractionError, PdfTextExtractor
 from .pipeline import build_export_data, format_abstracts_md
@@ -167,6 +168,95 @@ def build_parser() -> argparse.ArgumentParser:
     )
     status_parser.add_argument("--json-output", type=Path)
 
+    # -------------------------------------------------------------------------
+    # Safe Mutations & Local Auth Subcommands
+    # -------------------------------------------------------------------------
+    backup_parser = subparsers.add_parser(
+        "backup",
+        help="Create an instant hot snapshot backup of zotero.sqlite and WAL files.",
+    )
+    backup_parser.add_argument(
+        "--max-keep",
+        type=int,
+        default=10,
+        help="Maximum number of historical snapshots to retain (default: 10).",
+    )
+    backup_parser.add_argument("--json-output", type=Path)
+
+    auth_parser = subparsers.add_parser(
+        "auth",
+        help="Request write authorization from the running Zotero desktop application (one-time confirmation).",
+    )
+    auth_parser.add_argument(
+        "--app-name",
+        default="zotero-plus",
+        help="Application name to display in the Zotero desktop authorization prompt.",
+    )
+    auth_parser.add_argument("--json-output", type=Path)
+
+    create_col_parser = subparsers.add_parser("create-collection", help="Create a new collection.")
+    create_col_parser.add_argument("name", help="Name of the new collection.")
+    create_col_parser.add_argument("--parent", dest="parent_key", help="Optional parent collection key.")
+    create_col_parser.add_argument("--dry-run", action="store_true", help="Preview without making changes.")
+    create_col_parser.add_argument("--backend", choices=["local", "remote", "auto"], default=None)
+    create_col_parser.add_argument("--json-output", type=Path)
+
+    rename_col_parser = subparsers.add_parser("rename-collection", help="Rename an existing collection.")
+    rename_col_parser.add_argument("collection_key", help="Key of the collection to rename.")
+    rename_col_parser.add_argument("new_name", help="New name for the collection.")
+    rename_col_parser.add_argument("--dry-run", action="store_true", help="Preview without making changes.")
+    rename_col_parser.add_argument("--backend", choices=["local", "remote", "auto"], default=None)
+    rename_col_parser.add_argument("--json-output", type=Path)
+
+    delete_col_parser = subparsers.add_parser(
+        "delete-empty-collection",
+        help="Delete an empty collection (strictly refuses if it contains paper items or subcollections).",
+    )
+    delete_col_parser.add_argument("collection_key", help="Key of the empty collection to delete.")
+    delete_col_parser.add_argument("--dry-run", action="store_true", help="Preview without making changes.")
+    delete_col_parser.add_argument("--backend", choices=["local", "remote", "auto"], default=None)
+    delete_col_parser.add_argument("--json-output", type=Path)
+
+    add_col_parser = subparsers.add_parser("add-to-collection", help="Assign a paper item to a collection.")
+    add_col_parser.add_argument("paper_key", help="Key of the paper item.")
+    add_col_parser.add_argument("collection_key", help="Key of the collection.")
+    add_col_parser.add_argument("--dry-run", action="store_true", help="Preview without making changes.")
+    add_col_parser.add_argument("--backend", choices=["local", "remote", "auto"], default=None)
+    add_col_parser.add_argument("--json-output", type=Path)
+
+    remove_col_parser = subparsers.add_parser("remove-from-collection", help="Remove a paper item from a collection.")
+    remove_col_parser.add_argument("paper_key", help="Key of the paper item.")
+    remove_col_parser.add_argument("collection_key", help="Key of the collection.")
+    remove_col_parser.add_argument("--dry-run", action="store_true", help="Preview without making changes.")
+    remove_col_parser.add_argument("--backend", choices=["local", "remote", "auto"], default=None)
+    remove_col_parser.add_argument("--json-output", type=Path)
+
+    move_paper_parser = subparsers.add_parser("move-paper", help="Move a paper item to a target collection.")
+    move_paper_parser.add_argument("paper_key", help="Key of the paper item.")
+    move_paper_parser.add_argument("--to", dest="to_collection_key", required=True, help="Target collection key.")
+    move_paper_parser.add_argument(
+        "--from",
+        dest="from_collection_key",
+        help="Optional source collection key to remove from (defaults to current collection if item is in only one).",
+    )
+    move_paper_parser.add_argument("--dry-run", action="store_true", help="Preview without making changes.")
+    move_paper_parser.add_argument("--backend", choices=["local", "remote", "auto"], default=None)
+    move_paper_parser.add_argument("--json-output", type=Path)
+
+    add_tag_parser = subparsers.add_parser("add-tag", help="Add a tag to a paper item.")
+    add_tag_parser.add_argument("paper_key", help="Key of the paper item.")
+    add_tag_parser.add_argument("tag", help="Tag name to add.")
+    add_tag_parser.add_argument("--dry-run", action="store_true", help="Preview without making changes.")
+    add_tag_parser.add_argument("--backend", choices=["local", "remote", "auto"], default=None)
+    add_tag_parser.add_argument("--json-output", type=Path)
+
+    remove_tag_parser = subparsers.add_parser("remove-tag", help="Remove a tag from a paper item.")
+    remove_tag_parser.add_argument("paper_key", help="Key of the paper item.")
+    remove_tag_parser.add_argument("tag", help="Tag name to remove.")
+    remove_tag_parser.add_argument("--dry-run", action="store_true", help="Preview without making changes.")
+    remove_tag_parser.add_argument("--backend", choices=["local", "remote", "auto"], default=None)
+    remove_tag_parser.add_argument("--json-output", type=Path)
+
     return parser
 
 
@@ -186,6 +276,10 @@ def main() -> int:
     try:
         if args.command == "doctor":
             collections = library.list_collections()
+            mutator = ZoteroMutator(config, library)
+            local_api_avail = mutator.is_local_api_available()
+            local_auth = bool(config.get_effective_local_key())
+            backup_count = len(list(config.backup_dir.glob("backup_*"))) if config.backup_dir.exists() else 0
             payload = {
                 "status": "ok",
                 "sqlite_path": str(config.zotero_sqlite_path),
@@ -197,7 +291,13 @@ def main() -> int:
                 "output_dir": str(config.output_dir),
                 "pdf_cache_dir": str(config.pdf_cache_dir),
                 "analysis_summary_dir": str(config.analysis_summary_dir),
+                "backup_dir": str(config.backup_dir),
+                "backup_count": backup_count,
                 "collection_count": len(collections),
+                "local_api_available": local_api_avail,
+                "local_authorized": local_auth,
+                "mutation_backend": config.mutation_backend,
+                "remote_configured": bool(config.zotero_user_id and config.zotero_api_key),
             }
         elif args.command == "collections":
             payload = [asdict(record) for record in library.list_collections()]
@@ -353,10 +453,80 @@ def main() -> int:
                 recursive=args.recursive,
             )
             payload = asdict(readiness_record)
+        elif args.command == "backup":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.create_snapshot_backup(max_keep=args.max_keep)
+        elif args.command == "auth":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.authorize_local(app_name=args.app_name)
+        elif args.command == "create-collection":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.create_collection(
+                name=args.name,
+                parent_key=args.parent_key,
+                dry_run=args.dry_run,
+                backend_override=args.backend,
+            )
+        elif args.command == "rename-collection":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.rename_collection(
+                collection_key=args.collection_key,
+                new_name=args.new_name,
+                dry_run=args.dry_run,
+                backend_override=args.backend,
+            )
+        elif args.command == "delete-empty-collection":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.delete_empty_collection(
+                collection_key=args.collection_key,
+                dry_run=args.dry_run,
+                backend_override=args.backend,
+            )
+        elif args.command == "add-to-collection":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.add_to_collection(
+                paper_key=args.paper_key,
+                collection_key=args.collection_key,
+                dry_run=args.dry_run,
+                backend_override=args.backend,
+            )
+        elif args.command == "remove-from-collection":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.remove_from_collection(
+                paper_key=args.paper_key,
+                collection_key=args.collection_key,
+                dry_run=args.dry_run,
+                backend_override=args.backend,
+            )
+        elif args.command == "move-paper":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.move_paper(
+                paper_key=args.paper_key,
+                to_collection_key=args.to_collection_key,
+                from_collection_key=args.from_collection_key,
+                dry_run=args.dry_run,
+                backend_override=args.backend,
+            )
+        elif args.command == "add-tag":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.add_tag(
+                paper_key=args.paper_key,
+                tag=args.tag,
+                dry_run=args.dry_run,
+                backend_override=args.backend,
+            )
+        elif args.command == "remove-tag":
+            mutator = ZoteroMutator(config, library)
+            payload = mutator.remove_tag(
+                paper_key=args.paper_key,
+                tag=args.tag,
+                dry_run=args.dry_run,
+                backend_override=args.backend,
+            )
         else:
             parser.error(f"Unknown command: {args.command}")
             return 2
-    except ValueError as exc:
+    except (ValueError, MutationError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
 

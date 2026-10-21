@@ -6,6 +6,8 @@
 
 ```bash
 zotero-skill doctor
+zotero-skill backup [--max-keep <count>]
+zotero-skill auth [--app-name <name>]
 zotero-skill cache-status <collection_key> [-r]
 zotero-skill collections
 zotero-skill items <collection_key> [-r]
@@ -18,6 +20,14 @@ zotero-skill summaries [--collection-key <collection_key> [-r]] [--requirement "
 zotero-skill save-summary --attachment-key <attachment_key> --requirement "<需求>" --verdict match|maybe|not_match|unknown --summary-file <文件>
 zotero-skill export-abstracts <collection_key...> [-r] [--format md|json|both] [--output <path>]
 zotero-skill search <collection_key> --keywords <kw1> [kw2...] [-r] [--paper-key <paper_key>] [--exclude <excl...>] [--scope all|pdf|abstract]
+zotero-skill create-collection <name> [--parent <collection_key>] [--dry-run]
+zotero-skill rename-collection <collection_key> <new_name> [--dry-run]
+zotero-skill delete-empty-collection <collection_key> [--dry-run]
+zotero-skill add-to-collection <paper_key> <collection_key> [--dry-run]
+zotero-skill remove-from-collection <paper_key> <collection_key> [--dry-run]
+zotero-skill move-paper <paper_key> --to <target_collection_key> [--from <source_collection_key>] [--dry-run]
+zotero-skill add-tag <paper_key> <tag> [--dry-run]
+zotero-skill remove-tag <paper_key> <tag> [--dry-run]
 ```
 
 ## 1. doctor
@@ -34,6 +44,18 @@ zotero-skill doctor
 
 - 初次使用。
 - 怀疑环境失效时。
+
+## 2. backup
+
+```bash
+zotero-skill backup [--max-keep <count>]
+```
+
+用途：
+
+- 手动为 `zotero.sqlite` 数据库及 WAL 事务日志创建一份一致的热快照备份。
+- 在任何实际写操作（归类、改名、移动等）执行前，系统底层也会自动执行此备份。
+- 默认自动轮转并保留最新的 10 份快照。
 
 ## 2. collections
 
@@ -483,6 +505,91 @@ zotero-skill cache-status <collection_key> -r
 
 - 在开始大规模文献分析或综述前，快速摸底数据状态。
 - 判断是否需要先执行 `extract-pdfs`，避免盲目全文提取。
+
+## 14. auth
+
+```bash
+zotero-skill auth [--app-name <name>]
+```
+
+用途：
+
+- 向运行中的 Zotero 桌面端发起本地写入权限申请。
+- 会唤起 Zotero 界面弹窗提示用户授权，用户点击“始终允许”后持久化保存本地 API Key。
+
+## 15. create-collection
+
+```bash
+zotero-skill create-collection <name> [--parent <collection_key>] [--dry-run]
+```
+
+用途：
+
+- 创建一个新分类。可指定父分类 key（来自 `collections`）。
+- `--dry-run` 支持预演。
+
+## 16. rename-collection
+
+```bash
+zotero-skill rename-collection <collection_key> <new_name> [--dry-run]
+```
+
+用途：
+
+- 重命名现有分类。
+
+## 17. delete-empty-collection
+
+```bash
+zotero-skill delete-empty-collection <collection_key> [--dry-run]
+```
+
+用途：
+
+- 安全删除**完全为空**的分类。
+- 底层强校验：若分类下包含任何论文条目或子分类，拒绝删除并报错，防止误删文献。
+
+## 18. add-to-collection
+
+```bash
+zotero-skill add-to-collection <paper_key> <collection_key> [--dry-run]
+```
+
+用途：
+
+- 将指定论文条目关联进目标分类。
+
+## 19. remove-from-collection
+
+```bash
+zotero-skill remove-from-collection <paper_key> <collection_key> [--dry-run]
+```
+
+用途：
+
+- 将指定论文条目从某分类中移出（不删除文献本身）。
+
+## 20. move-paper
+
+```bash
+zotero-skill move-paper <paper_key> --to <target_collection_key> [--from <source_collection_key>] [--dry-run]
+```
+
+用途：
+
+- 将论文从一个分类迁移至另一分类。
+- 若省略 `--from` 且论文当前仅位于一个分类，自动将该分类作为来源。
+
+## 21. add-tag & remove-tag
+
+```bash
+zotero-skill add-tag <paper_key> <tag_name> [--dry-run]
+zotero-skill remove-tag <paper_key> <tag_name> [--dry-run]
+```
+
+用途：
+
+- 为论文添加或移除标签（Tag）。
 
 ## 最小工作流
 
